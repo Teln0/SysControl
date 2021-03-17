@@ -11,12 +11,13 @@ use crate::memory::frame_allocator::{BitMapFrameAllocator, FrameAllocator, FRAME
 use crate::memory::paging::{EntryTable, EntryFlags};
 use crate::utils::reg_write::write_cr3;
 use crate::memory::heap::{LinkedListHeapAllocator, AllocOption};
-use core::alloc::{Layout, GlobalAlloc};
+use core::alloc::{Layout};
 use alloc::boxed::Box;
 
 extern crate rlibc;
 #[macro_use]
 extern crate bitflags;
+#[macro_use]
 extern crate alloc;
 
 #[macro_use]
@@ -26,7 +27,7 @@ pub mod utils;
 
 pub const KERNEL_OFFSET: usize = 0xffffffff80000000;
 pub const MAX_HEAP: usize = 0x100000000; // 4GiB
-pub const HEAP_OFFSET: usize = 0xffffffff80000000 - MAX_HEAP;
+pub const HEAP_OFFSET: usize = KERNEL_OFFSET - MAX_HEAP;
 
 #[global_allocator]
 static mut ALLOCATOR: AllocOption<LinkedListHeapAllocator<BitMapFrameAllocator>> = AllocOption(None);
@@ -87,6 +88,23 @@ pub extern fn kernel_main(stivale_struct_ptr: usize) {
         let b = Box::new(i);
         assert_eq!(b.as_ref(), &i);
     }
+
+    for i in 0..1000 {
+        let b = Box::new(i);
+        let b2 = Box::new(i * 2);
+        let b3 = Box::new(i * 3);
+        assert_eq!(b.as_ref(), &i);
+        assert_eq!(b2.as_ref(), &(i * 2));
+        assert_eq!(b3.as_ref(), &(i * 3));
+    }
+
+    for i in 0..1000 {
+        let v = vec![i as usize; 1000];
+        let b = Box::new(i);
+        assert_eq!(b.as_ref(), &i);
+    }
+
+    println!("Ran 3000 allocation / deallocation tests !");
 }
 
 #[lang = "eh_personality"]

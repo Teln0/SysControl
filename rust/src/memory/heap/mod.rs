@@ -68,10 +68,7 @@ unsafe impl<T: FrameAllocator> GlobalAlloc for LinkedListHeapAllocator<T> {
         let mut current = &mut inner.holes;
         let mut previous: Option<&mut ListHeapNode> = None;
         loop {
-            if current.is_last {
-                // TODO : handle this case
-                break;
-            }
+            // First hole will be always of size 0, so we can safely use it
             if current.hole_size >= size + LIST_HEAP_NODE_SIZE {
                 // We found a suitable hole that won't leave any hole behind we couldn't fit a
                 // linked list node into
@@ -93,6 +90,11 @@ unsafe impl<T: FrameAllocator> GlobalAlloc for LinkedListHeapAllocator<T> {
                 }
 
                 return hole_address as *mut u8;
+            }
+
+            // We searched up to the last hole didn't find anything suitable
+            if current.is_last {
+                break;
             }
 
             let next_node = current.next_node;
@@ -150,10 +152,11 @@ unsafe impl<T: FrameAllocator> GlobalAlloc for LinkedListHeapAllocator<T> {
 
         // Find the right spot for the node in the linked list
         let mut current = &mut inner.holes;
+        let first = current as *const ListHeapNode;
         loop {
             if current.is_last {
                 let current_hole_address = (current as *const ListHeapNode) as usize;
-                if current.hole_size + current_hole_address == ptr as usize {
+                if current.hole_size + current_hole_address == ptr as usize && !core::ptr::eq(current, first) {
                     // We free a hole at the very end of the current one, so we can just extend
                     // the current one
                     current.hole_size += size;
@@ -182,7 +185,7 @@ unsafe impl<T: FrameAllocator> GlobalAlloc for LinkedListHeapAllocator<T> {
                     let new_hole = &mut *(ptr as *mut ListHeapNode);
                     let new_hole_address = ptr as usize;
 
-                    if current_hole_address + current.hole_size == ptr as usize {
+                    if current_hole_address + current.hole_size == ptr as usize && !core::ptr::eq(current, first) {
                         if new_hole_address + size == next_hole_address {
                             // Merge current with next
                             current.hole_size += size + next.hole_size;
